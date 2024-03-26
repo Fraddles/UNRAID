@@ -1,0 +1,83 @@
+version: '3.9'
+###
+networks:
+  hass:
+  bond0:
+    external: true
+
+###
+services:
+  homeassistant:
+    container_name: Home-Assistant
+    image: ghcr.io/home-assistant/home-assistant:stable
+#    user: 1001:99
+    networks:
+      bond0:
+        ipv4_address: 192.168.xx.yy
+      hass:
+    volumes:
+      - /mnt/docker/appdata/HASS/Home-Assistant:/config
+      - /mnt/user/Media:/media
+      - /mnt/docker/appdata/LetsEncrypt/certs/live/fraddles.com/fullchain.pem:/ssl/fullchain.pem:ro
+      - /mnt/docker/appdata/LetsEncrypt/certs/live/fraddles.com/privkey.pem:/ssl/privkey.pem:ro
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - TZ=Australia/Melbourne
+    restart: always
+##
+  whisper:
+    container_name: Whisper
+    image: rhasspy/wyoming-whisper
+    user: 1001:99
+    networks:
+      - hass
+    volumes:
+      - /mnt/docker/appdata/HASS/Whisper/data:/data
+      - /mnt/docker/appdata/HASS/Whisper/cache:/.cache
+      - /mnt/docker/appdata/CUDA/libcudnn_ops_infer.so.8.5.0:/usr/lib/x86_64-linux-gnu/libcudnn_ops_infer.so.8:ro
+      - /mnt/docker/appdata/CUDA/libcudnn_cnn_infer.so.8.5.0:/usr/lib/x86_64-linux-gnu/libcudnn_cnn_infer.so.8:ro
+      - /mnt/docker/appdata/CUDA/libcublas.so.11.11.3.6:/usr/lib/x86_64-linux-gnu/libcublas.so.12:ro
+      - /mnt/docker/appdata/CUDA/libcublasLt.so.11.11.3.6:/usr/lib/x86_64-linux-gnu/libcublasLt.so.11:ro
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - TZ=Australia/Melbourne
+    command: --model small-int8 --language en --beam-size 5 --device cuda
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: always
+##
+  piper:
+    container_name: Piper
+    image: rhasspy/wyoming-piper
+    user: 1001:99
+    networks:
+      - hass
+    volumes:
+      - /mnt/docker/appdata/HASS/Piper:/data
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - TZ=Australia/Melbourne
+    command: --voice en-us-ryan-medium
+    restart: always
+##
+#  openwakeword:
+#    container_name: openwakeword
+#    image: rhasspy/wyoming-openwakeword
+#    user: 1001:99
+#    networks:
+#      - hass
+#    volumes:
+#      - ./wakeword:/data
+#      - ./wakeword:/custom
+#      - /etc/timezone:/etc/timezone:ro
+#      - /etc/localtime:/etc/localtime:ro
+#    environment:
+#      - TZ=Australia/Melbourne
+#    command: --preload-model 'ok_nabu' --custom-model-dir /custom
+#    restart: unless-stopped
